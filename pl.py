@@ -28,13 +28,31 @@ class Add(Binary):
 
     def evaluate(self):
         return self.l.evaluate() + self.r.evaluate()
+    
+class If(Expression):
+    def __init__(self):
+        self.cond = None
+        self.l = None
+        self.r = None
+    
+    def parse(self, tokens):
+        self.cond = parse(tokens)
+        self.l = parse(tokens)
+        self.r = parse(tokens)
+    
+    def evaluate(self):
+        if self.cond.evaluate():
+            return self.l.evaluate()
+        else:
+            return self.r.evaluate()
 
 def createExpression(op) -> Expression:
     if op == "+":
         return Add()
+    elif op == "if":
+        return If()
     else:
         raise Exception(f"{op} op does not exist")
-
 
 def parse(tokens):
     if tokens[-1].isdigit():
@@ -50,7 +68,7 @@ def parse(tokens):
 
     return e
 
-i = "( + ( + 32 8 ) ( + 12 ( + 3 ( + 7 8 ) ) ) )"
+i = "( if 0 ( + ( + 32 8 ) ( + 12 ( + 3 ( + 7 8 ) ) ) ) 32 )"
 
 tokens = i.split(" ")
 tokens.reverse()
