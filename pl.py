@@ -17,17 +17,23 @@ class Binary(Expression):
         self.op = op
         self.l = None
         self.r = None
+        self.debug = None 
 
     def parse(self, tokens):
+        self.debug = list(tokens)+[(self.op)]
         self.l = parse(tokens)
         self.r = parse(tokens)
-
+ 
 class Add(Binary):
     def __init__(self):
         super().__init__("+")
 
     def evaluate(self):
-        return self.l.evaluate() + self.r.evaluate()
+        try:
+            return self.l.evaluate() + self.r.evaluate()
+        except Exception as e:
+            print(f"error in {self.debug}")
+            raise e
     
 class If(Expression):
     def __init__(self):
@@ -47,6 +53,7 @@ class If(Expression):
             return self.r.evaluate()
 
 SymbolTable = dict()
+Stack = list()
 
 # todo: this is not an expression
 class Define(Expression):
@@ -59,12 +66,12 @@ class Define(Expression):
         self.stub.parse(tokens)
         self.function = parse(tokens)
 
-        SymbolTable[self.stub.symbol] = self.function
+        SymbolTable[self.stub.symbol] = (self.stub, self.function)
 
 class Stub():
     def __init__(self):
         self.symbol = None
-        self.parameters = []
+        self.parameters = list()
     
     def parse(self, tokens):
         l = tokens.pop()
@@ -78,6 +85,40 @@ class Stub():
             self.parameters.append(next)
         assert next == ")", f'"{next}" != ")"'
 
+class Reference(Expression):
+    def __init__(self, symbol):
+        self.symbol = symbol
+        self.arguments = dict()
+    
+    def parse(self, tokens):
+        if self.symbol not in SymbolTable:
+            # shouldn't we throw an exception?
+            return
+        stub, _ = SymbolTable[self.symbol]
+        for p in stub.parameters:
+            self.arguments[p] = parse(tokens)
+
+    def evaluate(self):
+        for key, value in self.arguments.items():
+            self.arguments[key] = value.evaluate()
+        
+        toEvaluate = None
+
+        for s in Stack[::-1]:
+            if self.symbol in s:
+                toEvaluate = s[self.symbol]
+
+        if self.symbol in SymbolTable:
+            _, toEvaluate = SymbolTable[self.symbol]
+
+        if toEvaluate is None:
+            raise Exception(f"symbol {self.symbol} not found")
+
+        Stack.append(self.arguments)
+        if isinstance(toEvaluate, int):
+            return toEvaluate
+        return toEvaluate.evaluate()
+
 def createExpression(op) -> Expression:
     if op == "+":
         return Add()
@@ -86,14 +127,11 @@ def createExpression(op) -> Expression:
     elif op == "define":
         return Define()
     else:
-        raise Exception(f"{op} op does not exist")
+        return Reference(op)
 
 def parse(tokens):
     if tokens[-1].isdigit():
         return Integer(int(tokens.pop()))
-
-    if tokens[-1] in SymbolTable:
-        return SymbolTable[tokens.pop()]
 
     l = tokens.pop()
     assert l == "(", f'"{l}" != "("'
@@ -101,11 +139,11 @@ def parse(tokens):
     e = createExpression(op)
     e.parse(tokens)
     r = tokens.pop()
-    assert r == ")", f'"{r}" != ")"'
+    assert r == ")", f'"{r}" != ")" in string {tokens.append(r)}'
 
     return e
 
-i = "( define ( hello ) 10 ) ( if 0 ( + ( + 32 8 ) ( + 12 ( + 3 ( + 7 8 ) ) ) ) hello )"
+i = "( define ( hello a ) ( + 10 ( a ) ) ) ( if 0 ( + ( + 32 8 ) ( + 12 ( + 3 ( + 7 8 ) ) ) ) ( hello 5 ) )"
 
 tokens = i.split(" ")
 tokens.reverse()
